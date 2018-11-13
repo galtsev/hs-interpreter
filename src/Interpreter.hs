@@ -20,6 +20,7 @@ data Term =
     | Add Term Term
     | Lam Name Term
     | App Term Term
+    deriving (Eq, Show)
 
 type Env = M.Map Name Value
 

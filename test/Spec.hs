@@ -1,12 +1,25 @@
+{-# Language OverloadedStrings, QuasiQuotes #-}
 import Test.Hspec
 import qualified Data.Map.Strict as M
 import Data.Functor.Identity (Identity(..))
+import Data.ByteString as BS
+import Data.String.Here.Uninterpolated (here)
+import Data.Aeson (eitherDecodeStrict)
+
+import Decoder
 import Interpreter
 
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
 shouldEval term env expected = 
     runIdentity (interp term (M.fromList env)) `shouldBe` expected
+
+shouldDecode:: BS.ByteString -> [(Name, Value)] -> Value -> Expectation
+shouldDecode src vars expected = do
+    case eitherDecodeStrict src of
+        Left msg -> expectationFailure msg
+        Right term -> shouldEval term vars expected
+
 
 main :: IO ()
 main = hspec $ do
@@ -43,3 +56,25 @@ main = hspec $ do
                 term = App (App lam (Const 2)) (Var "t")
             in
                 shouldEval term [("t", Num 64)] (Num 130)
+
+    describe "decoders" $ do
+        it "simple const" $
+            shouldDecode "123" [] $ Num 123
+        it "simple var" $
+            shouldDecode [here| "x" |] [("x", Num 93)] $ Num 93
+        it "add application" $
+            let 
+                src  = [here| ["add", 12, "x"] |]
+            in
+                shouldDecode src [("x", Num 34)] $ Num 46
+        it "lambda" $
+            let
+                src = [here| 
+                    [ 
+                        ["lambda", "x",
+                            ["add", 3, "x"] ],
+                        17
+                    ] 
+                |]
+            in
+                shouldDecode src [] $ Num 20
