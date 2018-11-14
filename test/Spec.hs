@@ -12,7 +12,12 @@ import Interpreter
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
 shouldEval term env expected = 
-    runIdentity (interp term (M.fromList env)) `shouldBe` expected
+    interp term (M.fromList env) `shouldBe` Right expected
+
+shouldFailWith:: Term -> [(Name, Value)] -> Error -> Expectation
+shouldFailWith term env expected = case interp term (M.fromList env) of
+    Right _ -> expectationFailure "Expected Left"
+    Left err -> err `shouldBe` expected
 
 shouldDecode:: BS.ByteString -> [(Name, Value)] -> Value -> Expectation
 shouldDecode src vars expected = do
@@ -29,18 +34,28 @@ main = hspec $ do
         it "var eval to refered value" $
             shouldEval (Var "x") [("x", Num 32)] $ Num 32
         it "missing var eval to Wrong" $
-            shouldEval (Var "x") [("y", Num 77)] Wrong
+            shouldFailWith (Var "x") [("y", Num 77)] $ UnboundVar "x"
         it "add eval to sum" $
             let
                 term = Add (Const 4) (Var "z")
             in
                 shouldEval term [("z", Num 69)] $ Num 73
+        it "add fail if arg eval to not a number" $
+            let
+                term = Add (Const 8) (Lam "x" (Var "x"))
+            in
+                shouldFailWith term [] ExpectedNumber
         it "applying lambda" $
             let
                 lam = Lam "x" $ Add (Const 3) (Var "x")
                 term = App lam (Const 6)
             in
                 shouldEval term [] $ Num 9
+        it "applying non-lambda should fail" $
+            let
+                term = App (Const 2) (Const 3)
+            in
+                shouldFailWith term [] ExpectedFunction
         it "lambda may get value from env" $
             let
                 -- \x -> x + e
