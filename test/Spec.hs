@@ -8,6 +8,7 @@ import Data.Aeson (eitherDecodeStrict)
 
 import Decoder
 import Interpreter
+import StdLib
 
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
@@ -45,6 +46,16 @@ main = hspec $ do
                 term = Add (Const 8) (Lam "x" (Var "x"))
             in
                 shouldFailWith term [] ExpectedNumber
+        it "add fail if first argument fail" $
+            let
+                term = Add (Var "x") (Const 12)
+            in
+                shouldFailWith term [] $ UnboundVar "x"
+        it "add fail if second argument fail" $
+            let
+                term = Add (Const 43) (Var "y")
+            in
+                shouldFailWith term [] $ UnboundVar "y"
         it "applying lambda" $
             let
                 lam = Lam "x" $ Add (Const 3) (Var "x")
@@ -93,3 +104,13 @@ main = hspec $ do
                 |]
             in
                 shouldDecode src [] $ Num 20
+
+    describe "stdlib" $ do
+        it "neg should negate number" $
+            shouldEval (App (Var "neg") (Const 23)) stdlib $ Num (-23)
+        it "mul should multiply" $
+            let
+                term = App (App (Var "mul") (Const 5)) (Var "t")
+            in
+                shouldEval term (("t", Num 7):stdlib) $ Num 35
+
