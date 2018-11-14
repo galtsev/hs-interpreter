@@ -11,11 +11,26 @@ data Error =
     | ExpectedFunction
     deriving (Eq, Show)
 
-type M = Either Error
+data Result a = Ok a | Err Error deriving (Eq, Show)
 
+instance Functor Result where
+    fmap f (Ok a) = Ok (f a)
+    fmap f (Err e) = Err e
+
+instance Applicative Result where
+    pure a = Ok a
+    (Ok fn) <*> (Ok v) = Ok (fn v)
+    Err err <*> _ = Err err
+    fn <*> Err err = Err err
+
+instance Monad Result where
+    Ok a >>= f = f a
+    Err err >>= f = Err err
+
+type M = Result
 
 wrong:: Error -> M a
-wrong err = Left err
+wrong err = Err err
 
 data Value = Num Int | Fun (Value -> M Value)
 

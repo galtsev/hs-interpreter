@@ -12,12 +12,12 @@ import Interpreter
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
 shouldEval term env expected = 
-    interp term (M.fromList env) `shouldBe` Right expected
+    interp term (M.fromList env) `shouldBe` Ok expected
 
 shouldFailWith:: Term -> [(Name, Value)] -> Error -> Expectation
 shouldFailWith term env expected = case interp term (M.fromList env) of
-    Right _ -> expectationFailure "Expected Left"
-    Left err -> err `shouldBe` expected
+    Ok _ -> expectationFailure "Expected Left"
+    Err err -> err `shouldBe` expected
 
 shouldDecode:: BS.ByteString -> [(Name, Value)] -> Value -> Expectation
 shouldDecode src vars expected = do
