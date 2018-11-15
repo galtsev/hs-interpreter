@@ -10,15 +10,19 @@ import Decoder
 import Interpreter
 import StdLib
 
+runM:: Term -> [(Name, Value)] -> Result Value
+runM term env = snd $ runST (interp term (M.fromList env)) []
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
-shouldEval term env expected = 
-    interp term (M.fromList env) `shouldBe` Ok expected
+shouldEval term env expected = runM term env `shouldBe` (Ok expected)
 
 shouldFailWith:: Term -> [(Name, Value)] -> Error -> Expectation
-shouldFailWith term env expected = case interp term (M.fromList env) of
+shouldFailWith term env expected = case runM term env of
     Ok _ -> expectationFailure "Expected Left"
-    Err err -> err `shouldBe` expected
+    Err (_, err) -> err `shouldBe` expected
+
+shouldFailWithLabel:: Term -> [(Name, Value)] -> Error -> [Position] -> Expectation
+shouldFailWithLabel term env err tb = runM term env `shouldBe` (Err (tb, err))
 
 shouldDecode:: BS.ByteString -> [(Name, Value)] -> Value -> Expectation
 shouldDecode src vars expected = do
@@ -26,6 +30,8 @@ shouldDecode src vars expected = do
         Left msg -> expectationFailure msg
         Right term -> shouldEval term vars expected
 
+pass:: Expectation
+pass = pure ()
 
 main :: IO ()
 main = hspec $ do
@@ -113,4 +119,39 @@ main = hspec $ do
                 term = App (App (Var "mul") (Const 5)) (Var "t")
             in
                 shouldEval term (("t", Num 7):stdlib) $ Num 35
+
+    describe "positioning" $ do
+        it "simple err" $
+            shouldFailWith (FailWith (Custom "simple")) [] (Custom "simple")
+        it "simple labelled" $
+            let
+                err = Custom "lbl"
+                lbl = Label "here"
+                term = Lbl lbl (FailWith err)
+            in
+                shouldFailWithLabel term [] err [lbl]
+        it "nested labels" $
+            let
+                err = Custom "lb2"
+                outer = Label "outer"
+                inner = Label "inner"
+                term = Lbl outer (Lbl inner (FailWith err))
+            in
+                shouldFailWithLabel term [] err [inner, outer]
+        it "add with non-num arg fail at outer level" $
+            let
+                outer = Label "add"
+                inner = Label "badInt"
+                term = Lbl outer (Add (Const 12) (Lbl inner (ConstBool True)))
+            in
+                shouldFailWithLabel term [] ExpectedNumber [outer]
+        it "add with failing arg fail at arg level" $
+            let
+                err = Custom "badArgErr"
+                outer = Label "add"
+                inner = Label "badArg"
+                term = Lbl outer (Add (Const 12) (Lbl inner (FailWith err)))
+            in
+                shouldFailWithLabel term [] err [inner, outer]
+
 
