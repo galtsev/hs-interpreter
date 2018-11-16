@@ -1,7 +1,8 @@
 module Interpreter where
 
 import qualified Data.Map.Strict as M
-import Data.Functor.Identity (Identity)
+import Interp.Result
+import Interp.State
 
 type Name = String
 
@@ -12,70 +13,27 @@ data Error =
     | Custom String
     deriving (Eq, Show)
 
-data Result a = Ok a | Err ([Position], Error) deriving (Eq, Show)
-
-instance Functor Result where
-    fmap f (Ok a) = Ok (f a)
-    fmap f (Err e) = Err e
-
-instance Applicative Result where
-    pure a = Ok a
-    (Ok fn) <*> (Ok v) = Ok (fn v)
-    Err err <*> _ = Err err
-    fn <*> Err err = Err err
-
-instance Monad Result where
-    Ok a >>= f = f a
-    Err err >>= f = Err err
-
 newtype Position = Label String
     deriving (Eq, Show)
 
-newtype ST a = ST ([Position] -> ([Position], Result a))
 
-runST:: ST a -> [Position] -> ([Position], Result a)
-runST (ST a) tb = a tb
+-- enterLabel:: Position -> ST ()
+-- enterLabel pos = ST $ \tb -> (pos:tb, Ok ())
 
-instance Functor ST where
-    fmap f (ST v) = ST $ go
-        where
-            go tb = let (ntb, r) = v tb in (ntb, f <$> r)
-        -- \tb -> (tb, f <$> v tb)
+-- exitLabel:: ST()
+-- exitLabel = ST $ \tb -> (tail tb, Ok ())
 
-instance Applicative ST where
-    pure r = ST $ \tb -> (tb, pure r)
-    (ST fn) <*> (ST arg) = ST $ go
-        where
-            go tb =
-                let 
-                    (tb1, fn1) = fn tb
-                    (tb2, arg1) = arg tb1
-                in
-                    (tb2, fn1 <*> arg1)
-        -- \tb -> (fn tb) <*> (arg tb)
-
-instance Monad ST where
-    (ST a) >>= f = ST $ go
-        where
-            go tb =
-                let
-                    (tb1, a1) = a tb
-                in
-                    case f <$> a1 of
-                        Err err -> (tb1, Err err)
-                        Ok g -> runST g tb1
-
-
-enterLabel:: Position -> ST ()
-enterLabel pos = ST $ \tb -> (pos:tb, Ok ())
-
-exitLabel:: ST()
-exitLabel = ST $ \tb -> (tail tb, Ok ())
-
-type M = ST
+type M = ResultT ([Position], Error) (State [Position])
 
 wrong:: Error -> M a
-wrong err = ST $ \tb -> (tb, Err (tb, err))
+-- wrong err = ST $ \tb -> (tb, Err (tb, err))
+wrong err = ResultT . State $ \tb -> (tb, Err (tb, err))
+
+enterLabel:: Position -> M ()
+enterLabel pos = ResultT . State $ \tb -> (pos:tb, Ok ())
+
+exitLabel:: M ()
+exitLabel = ResultT . State $ \tb -> (tail tb, Ok ())
 
 data Value = TrueV | FalseV | Num Int | Fun (Value -> M Value)
 

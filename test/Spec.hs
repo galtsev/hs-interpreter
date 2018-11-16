@@ -8,10 +8,14 @@ import Data.Aeson (eitherDecodeStrict)
 
 import Decoder
 import Interpreter
+import Interp.Result
+import Interp.State
 import StdLib
 
-runM:: Term -> [(Name, Value)] -> Result Value
-runM term env = snd $ runST (interp term (M.fromList env)) []
+type Res = Result ([Position], Error)
+
+runM:: Term -> [(Name, Value)] -> Res Value
+runM term env = snd $ runState (runResultT (interp term (M.fromList env))) []
 
 shouldEval:: Term -> [(Name, Value)] -> Value -> Expectation
 shouldEval term env expected = runM term env `shouldBe` (Ok expected)
