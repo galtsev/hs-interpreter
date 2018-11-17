@@ -29,3 +29,12 @@ instance Monad (State s) where
                     (tb1, a1) = a tb
                 in
                     runState (f a1) tb1
+
+get:: State s s
+get = State $ \s -> (s,s)
+
+set:: s -> State s ()
+set s = State $ \_ -> (s, ())
+
+update:: (s -> s) -> State s ()
+update f = State $ \s -> (f s, ())

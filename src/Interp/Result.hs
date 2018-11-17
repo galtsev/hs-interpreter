@@ -39,5 +39,8 @@ instance Monad m => Monad (ResultT e m) where
                 Err err -> pure (Err err)
                 Ok v -> runResultT (f v)
 
+failWith:: Monad m => e -> ResultT e m a
+failWith err = ResultT $ pure $ Err err
+
 lift:: Monad m => m a -> ResultT e m a
 lift ma = ResultT $ Ok <$> ma

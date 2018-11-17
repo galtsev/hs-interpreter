@@ -17,28 +17,22 @@ newtype Position = Label String
     deriving (Eq, Show)
 
 
--- enterLabel:: Position -> ST ()
--- enterLabel pos = ST $ \tb -> (pos:tb, Ok ())
-
--- exitLabel:: ST()
--- exitLabel = ST $ \tb -> (tail tb, Ok ())
-
 type M = ResultT ([Position], Error) (State [Position])
 
 wrong:: Error -> M a
--- wrong err = ST $ \tb -> (tb, Err (tb, err))
-wrong err = ResultT . State $ \tb -> (tb, Err (tb, err))
+wrong err = do
+    tb <- lift get
+    failWith (tb, err)
 
 enterLabel:: Position -> M ()
-enterLabel pos = ResultT . State $ \tb -> (pos:tb, Ok ())
+enterLabel pos = lift . update $ (pos:)
 
 exitLabel:: M ()
-exitLabel = ResultT . State $ \tb -> (tail tb, Ok ())
+exitLabel = lift . update $ tail
 
 data Value = TrueV | FalseV | Num Int | Fun (Value -> M Value)
 
 instance Eq Value where
-    -- Wrong == Wrong = True
     Num a == Num b = a==b
     _ == _ = False
 
@@ -56,7 +50,8 @@ data Term =
 type Env = M.Map Name Value
 
 instance Show Value where
-    -- show Wrong =  "<wrong>"
+    show TrueV = "True"
+    show FalseV = "False"
     show (Num v) = show v
     show (Fun _) = "<function>"
 
